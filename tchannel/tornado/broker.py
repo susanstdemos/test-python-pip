@@ -27,7 +27,8 @@ from ..errors import InvalidMessageError
 from ..errors import TChannelError
 from ..scheme import RawArgScheme
 from .stream import Stream
-
+from .context import gcontext
+import tchannel.tornado.context
 
 class ArgSchemeBroker(object):
     """Use serializer to broker request/response."""
@@ -45,6 +46,8 @@ class ArgSchemeBroker(object):
         self.endpoint[rule] = handler
 
     def handle_call(self, req, resp, proxy):
+        if tchannel.tornado.context.gcontext:
+            tchannel.tornado.context.gcontext.parent_tracing = req.tracing
         if not req.headers.get('as', None) == self.arg_scheme.type():
             raise InvalidMessageError(
                 "Invalid arg scheme in request header"

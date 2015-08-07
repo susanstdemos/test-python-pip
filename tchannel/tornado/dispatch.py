@@ -25,7 +25,8 @@ from collections import defaultdict
 import tornado
 import tornado.gen
 from tornado import gen
-
+from tornado.stack_context import run_with_stack_context
+from tornado.stack_context import StackContext
 from ..errors import InvalidEndpointError
 from ..errors import InvalidMessageError
 from ..errors import TChannelError
@@ -34,6 +35,9 @@ from ..handler import BaseRequestHandler
 from ..messages.error import ErrorCode
 from .broker import ArgSchemeBroker
 from .response import Response
+from .context import Context
+from .context import gcontext
+import tchannel.tornado.context
 
 
 class RequestDispatcher(BaseRequestHandler):
@@ -93,10 +97,12 @@ class RequestDispatcher(BaseRequestHandler):
         )
 
         connection.post_response(response)
+        _context = Context()
 
         try:
-            yield gen.maybe_future(
-                endpoint(
+            with StackContext(lambda: _context):
+                print tchannel.tornado.context.gcontext, 'www'
+                f = endpoint(
                     request,
                     response,
                     TChannelProxy(
@@ -104,7 +110,8 @@ class RequestDispatcher(BaseRequestHandler):
                         request.tracing,
                     ),
                 )
-            )
+
+            yield gen.maybe_future(f)
             response.flush()
         except (InvalidMessageError, InvalidEndpointError) as e:
             response.set_exception(e)
@@ -115,6 +122,7 @@ class RequestDispatcher(BaseRequestHandler):
                 response.id,
             )
         except Exception as e:
+            print e.message
             response.set_exception(TChannelError(e.message))
             connection.request_message_factory.remove_buffer(response.id)
             connection.send_error(
@@ -221,7 +229,10 @@ class TChannelProxy(object):
         return self._tchannel.hostport
 
     def request(self, hostport=None, service=None, **kwargs):
-        kwargs['parent_tracing'] = self.parent_tracing
+        print tchannel.tornado.context.gcontext
+        if tchannel.tornado.context.gcontext:
+            kwargs['parent_tracing'] = tchannel.tornado.context.gcontext.parent_tracing
+            print tchannel.tornado.context.gcontext.parent_tracing
         return self._tchannel.request(hostport,
                                       service,
                                       **kwargs)

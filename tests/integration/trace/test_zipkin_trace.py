@@ -43,16 +43,39 @@ except:
 
 
 @tornado.gen.coroutine
+def handler3(request, response, proxy):
+    print 'handler3'
+    print request.tracing
+    response.set_body_s(InMemStream("from handler2"))
+
+
+@tornado.gen.coroutine
 def handler2(request, response, proxy):
+    print 'handler2'
+    header = yield request.get_header()
+    print header
+    try:
+        res = yield proxy.request(header).send(
+            "endpoint3",
+            "",
+            "",
+            traceflag=True
+        )
+    except Exception as e:
+        import ipdb; ipdb.set_trace()
+        print e
+    body = yield res.get_body()
     response.set_body_s(InMemStream("from handler2"))
 
 
 @tornado.gen.coroutine
 def handler1(request, response, proxy):
+    print 'handler1'
     header = yield request.get_header()
+    print header
     res = yield proxy.request(header).send(
         "endpoint2",
-        "",
+        header,
         "",
         traceflag=True
     )
@@ -76,6 +99,7 @@ def submit(request, response, proxy):
 def register(tchannel):
     tchannel.register("endpoint1", "raw", handler1)
     tchannel.register("endpoint2", "raw", handler2)
+    tchannel.register("endpoint3", "raw", handler3)
     tchannel.register(TCollector, "thrift", submit)
 
 trace_buf = StringIO()
@@ -108,6 +132,7 @@ def test_zipkin_trace(trace_server):
                                                      traceflag=True)
     header = yield response.get_header()
     body = yield response.get_body()
+    print header, body
     assert header == "from handler1"
     assert body == "from handler2"
     traces = []
