@@ -105,7 +105,7 @@ class TChannel(object):
             process_name=process_name,
             known_peers=known_peers,
             trace=trace,
-            dispatcher=DeprecatedDispatcher(_handler_returns_response=True),
+            dispatcher=DeprecatedDispatcher(),
         )
 
         self.name = name

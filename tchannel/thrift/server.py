@@ -84,12 +84,7 @@ def register(dispatcher, service_module, handler, method=None, service=None):
     args_type = getattr(service_module, method + '_args')
     result_type = getattr(service_module, method + '_result')
 
-    # if the dispatcher is set to deal with handlers that
-    # return responses, then use new api, else use deprecated
-    if dispatcher._handler_returns_response:
-        handler = build_handler(result_type, handler)
-    else:
-        handler = deprecated_build_handler(result_type, handler)
+    handler = build_handler(result_type, handler)
 
     dispatcher.register(
         endpoint,
@@ -119,32 +114,6 @@ def build_handler(result_type, f):
         response.body = result.result
 
         raise gen.Return(response)
-    return handler
-
-
-def deprecated_build_handler(result_type, f):
-    @gen.coroutine
-    def handler(request, response):
-        req = yield ThriftRequest._from_raw_request(request)
-        res = ThriftResponse(result_type())
-        try:
-            # TODO: It would be nice if we could wait until write_result was
-            # called or an exception was thrown instead of waiting for the
-            # function to return. This would allow for use cases where the
-            # implementation returns the result early but still does some work
-            # after that.
-            result = yield gen.maybe_future(f(req, res))
-        except Exception:
-            res.write_exc_info(sys.exc_info())
-        else:
-            if not res.finished and result is not None:
-                # The user never called write_result or threw an
-                # exception. The result was most likely returned by the
-                # function.
-                res.write_result(result)
-        response.code = res.code
-        response.write_header(res.headers)
-        response.write_body(res.result)
     return handler
 
 

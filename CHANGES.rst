@@ -9,6 +9,9 @@ Changes by Version
 - **BREAKING** - headers for JSON handlers are not longer JSON blobs but are
   instead maps of strings to strings. This mirrors behavior for Thrift
   handlers.
+- **BREAKING** - remove the depreciated endpoint handler which takes request
+  and response. Right now the endpoint handler will only take request as input
+  argument.
 
 
 0.17.3 (unreleased)

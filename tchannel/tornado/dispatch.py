@@ -64,10 +64,9 @@ class RequestDispatcher(object):
 
     FALLBACK = object()
 
-    def __init__(self, _handler_returns_response=False):
+    def __init__(self):
         self.handlers = {}
         self.register(self.FALLBACK, self.not_found)
-        self._handler_returns_response = _handler_returns_response
 
     _HANDLER_NAMES = {
         Types.CALL_REQ: 'pre_call',
@@ -172,59 +171,45 @@ class RequestDispatcher(object):
         connection.post_response(response)
 
         try:
-            # New impl - the handler takes a request and returns a response
-            if self._handler_returns_response:
+            # convert deprecated req to new top-level req
+            b = yield request.get_body()
+            he = yield request.get_header()
+            t = request.headers
+            t = transport.to_kwargs(t)
+            t = TransportHeaders(**t)
+            new_req = Request(
+                body=b,
+                headers=he,
+                transport=t,
+                endpoint=request.endpoint,
+            )
 
-                # convert deprecated req to new top-level req
-                b = yield request.get_body()
-                he = yield request.get_header()
-                t = request.headers
-                t = transport.to_kwargs(t)
-                t = TransportHeaders(**t)
-                new_req = Request(
-                    body=b,
-                    headers=he,
-                    transport=t,
-                    endpoint=request.endpoint,
-                )
+            # Not safe to have coroutine yields statement within
+            # stack context.
+            # The right way to do it is:
+            # with request_context(..):
+            #    future = f()
+            # yield future
 
-                # Not safe to have coroutine yields statement within
-                # stack context.
-                # The right way to do it is:
-                # with request_context(..):
-                #    future = f()
-                # yield future
+            with request_context(request.tracing):
+                f = handler.endpoint(new_req)
 
-                with request_context(request.tracing):
-                    f = handler.endpoint(new_req)
+            new_resp = yield gen.maybe_future(f)
 
-                new_resp = yield gen.maybe_future(f)
+            # instantiate a tchannel.Response
+            new_resp = response_from_mixed(new_resp)
 
-                # instantiate a tchannel.Response
-                new_resp = response_from_mixed(new_resp)
+            response.code = new_resp.status
 
-                response.code = new_resp.status
+            # assign resp values to dep response
+            response.write_header(new_resp.headers)
 
-                # assign resp values to dep response
-                response.write_header(new_resp.headers)
-
-                if new_resp.body is not None:
-                    response.write_body(new_resp.body)
-
-            # Dep impl - the handler is provided with a req & resp writer
-            else:
-                with request_context(request.tracing):
-                    f = handler.endpoint(request, response)
-
-                yield gen.maybe_future(f)
+            if new_resp.body is not None:
+                response.write_body(new_resp.body)
 
             response.flush()
         except TChannelError as e:
-            connection.send_error(
-                e.code,
-                e.message,
-                request.id,
-            )
+            connection.send_error(e.code, e.message, request.id)
         except Exception as e:
             msg = "An unexpected error has occurred from the handler"
             log.exception(msg)
