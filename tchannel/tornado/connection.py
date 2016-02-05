@@ -306,6 +306,8 @@ class TornadoConnection(object):
             "Message ID '%d' already being used" % message.id
         )
 
+        if message.message_type == type.CALL_RES:
+            log.info("tchannel status code %d", message.code)
         future = tornado.gen.Future()
         self._outstanding[message.id] = future
         self.write(message)
