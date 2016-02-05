@@ -29,7 +29,7 @@ import sys
 import tornado.gen
 import tornado.iostream
 import tornado.queues as queues
-
+from tchannel.messages import types
 from tornado import stack_context
 from tornado.iostream import StreamClosedError
 
@@ -306,7 +306,7 @@ class TornadoConnection(object):
             "Message ID '%d' already being used" % message.id
         )
 
-        if message.message_type == type.CALL_RES:
+        if message.message_type == Types.CALL_RES:
             log.info("tchannel status code %d", message.code)
         future = tornado.gen.Future()
         self._outstanding[message.id] = future
