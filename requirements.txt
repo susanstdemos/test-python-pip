@@ -2,9 +2,9 @@
 contextlib2
 
 # external deps
-crcmod>=1,<2
-tornado>=4.2,<5
+crcmod==1.7
+tornado==4.5.3
 
 # tchannel deps
-thriftrw>=0.4,<2
-threadloop>=1,<2
+thriftrw==1.7.1
+threadloop==1.0.2
