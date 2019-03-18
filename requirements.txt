@@ -3,6 +3,8 @@ contextlib2
 
 # external deps
 crcmod==1.7
+ply==3.11
+six==1.12.0
 tornado==4.5.3
 
 # tchannel deps
